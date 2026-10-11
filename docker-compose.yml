@@ -1,0 +1,121 @@
+﻿version: '3.8'
+
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: asf-controller
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - asf-network
+
+  cloud:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-cloud
+    environment:
+      - NODE_ID=CLOUD
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  fog-01:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-fog-01
+    environment:
+      - NODE_ID=FOG-01
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  fog-02:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-fog-02
+    environment:
+      - NODE_ID=FOG-02
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  edge-01:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-edge-01
+    environment:
+      - NODE_ID=EDGE-01
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  edge-02:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-edge-02
+    environment:
+      - NODE_ID=EDGE-02
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  edge-03:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-edge-03
+    environment:
+      - NODE_ID=EDGE-03
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  edge-04:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: asf-edge-04
+    environment:
+      - NODE_ID=EDGE-04
+      - CONTROLLER_URL=http://controller:8000
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: asf-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - controller
+    networks:
+      - asf-network
+
+networks:
+  asf-network:
+    driver: bridge

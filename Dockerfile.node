@@ -1,0 +1,11 @@
+﻿FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir httpx pydantic
+
+COPY backend/app/node_agent.py ./backend/app/node_agent.py
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "-m", "backend.app.node_agent"]
