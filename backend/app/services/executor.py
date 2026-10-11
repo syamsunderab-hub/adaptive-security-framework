@@ -1,7 +1,8 @@
 ﻿import time
 from typing import Optional
+import json
 from ..models.node import NodeState, MapeKStage, SecurityLevel
-from ..models.security import AdaptationRecord, AdaptationMode
+from ..models.security import AdaptationRecord, AdaptationMode, EnforcementMode, ExecutionStatus
 from ..models.event import SystemEvent, SystemEventType
 from .planner import AdaptationPlan
 from .knowledge import knowledge_base
@@ -16,12 +17,20 @@ class Executor:
         adaptation_mode: AdaptationMode = AdaptationMode.FULL_ADAPTATION
     ) -> Optional[AdaptationRecord]:
         node.mape_k_stage = MapeKStage.EXECUTE
+        # This prototype has no privileged firewall/runtime adapter. Make that
+        # explicit so UI and reports cannot mistake state simulation for host enforcement.
+        enforcement_mode = EnforcementMode.SIMULATED
+        execution_status = ExecutionStatus.SIMULATED_SUCCESS
+        verification_result = "simulated node state and restrictions verified"
         node.active_restrictions = plan.restrictions
         node.last_adaptation = time.strftime("%H:%M:%S")
 
         level_changed = (node.security_level != plan.target_level)
         prev_level = node.security_level
         node.security_level = plan.target_level
+        node.metadata["last_adaptation_at"] = time.time()
+        node.metadata["enforcement_mode"] = enforcement_mode.value
+        node.metadata["execution_status"] = execution_status.value
 
         adapt_record = None
 
@@ -36,6 +45,14 @@ class Executor:
                 affected_nodes=[node.node_id],
                 details=plan.reason
             )
+            adapt_record.observed_telemetry = plan.observed_telemetry
+            adapt_record.baseline = plan.baseline
+            adapt_record.risk_components = plan.risk_components
+            adapt_record.risk_score = plan.threshold
+            adapt_record.threshold = plan.threshold
+            adapt_record.enforcement_mode = enforcement_mode
+            adapt_record.execution_status = execution_status
+            adapt_record.verification_result = verification_result
             knowledge_base.record_adaptation(adapt_record)
             log_adaptation_db(
                 adapt_record.id,
@@ -47,7 +64,19 @@ class Executor:
                 adapt_record.trigger_threat,
                 adapt_record.adaptation_mode.value,
                 adapt_record.affected_nodes,
-                adapt_record.details
+                json.dumps({
+                    "reason": adapt_record.details,
+                    "controller_id": adapt_record.controller_id,
+                    "observed_telemetry": adapt_record.observed_telemetry,
+                    "baseline": adapt_record.baseline,
+                    "risk_components": adapt_record.risk_components,
+                    "risk_score": adapt_record.risk_score,
+                    "threshold": adapt_record.threshold,
+                    "enforcement_mode": adapt_record.enforcement_mode.value,
+                    "execution_status": adapt_record.execution_status.value,
+                    "verification_result": adapt_record.verification_result,
+                    "execution_error": adapt_record.execution_error,
+                })
             )
 
             # Security level changed event

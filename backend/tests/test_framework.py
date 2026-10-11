@@ -8,9 +8,11 @@ from backend.app.services.security_manager import security_level_manager
 from backend.app.services.global_controller import global_controller
 from backend.app.services.heartbeat_manager import heartbeat_manager
 from backend.app.services.monitor import monitor_engine
+from backend.app.services.knowledge import knowledge_base
 from backend.app.services.simulation_engine import simulation_engine
 from fastapi.testclient import TestClient
 from backend.app.main import app
+from pydantic import ValidationError
 
 @pytest.fixture(autouse=True)
 def setup_topology():
@@ -53,6 +55,28 @@ def test_security_level_transitions_and_actions():
     # Most restrictive check
     levels = [SecurityLevel.DEFCON_5, SecurityLevel.DEFCON_3, SecurityLevel.DEFCON_2]
     assert security_level_manager.get_most_restrictive(levels) == SecurityLevel.DEFCON_2
+
+def test_analysis_is_deterministic_and_validates_telemetry():
+    telemetry = NodeTelemetry(cpu_percent=20, network_traffic_pps=900, connection_count=100, failed_auth_count=2)
+    baseline = {"traffic": 85.0, "connections": 25.0, "cpu": 8.0}
+    assert analyzer_engine.analyze(telemetry, baseline) == analyzer_engine.analyze(telemetry, baseline)
+    with pytest.raises(ValidationError):
+        NodeTelemetry(cpu_percent=-1)
+
+@pytest.mark.asyncio
+async def test_adaptation_audit_marks_simulation_and_exposes_evidence():
+    await simulation_engine.reset_system()
+    node = global_controller.nodes["EDGE-02"]
+    await simulation_engine.trigger_attack("EDGE-02", ThreatType.ICMP_FLOOD)
+    record = global_controller.nodes[node.node_id].metadata
+    assert record["enforcement_mode"] == "SIMULATED"
+    assert record["execution_status"] == "SIMULATED_SUCCESS"
+    assert knowledge_base.adaptation_history
+    audit = knowledge_base.adaptation_history[0]
+    assert audit.enforcement_mode.value == "SIMULATED"
+    assert audit.execution_status.value == "SIMULATED_SUCCESS"
+    assert audit.observed_telemetry
+    assert audit.risk_components
 
 @pytest.mark.asyncio
 async def test_mape_k_cycle():
@@ -136,3 +160,7 @@ def test_api_endpoints():
         res_act = client.post("/api/nodes/EDGE-01/action", json={"action": "rate_limit"})
         assert res_act.status_code == 200
         assert res_act.json()["node"]["security_level"] == "DEFCON_2"
+
+        audit = client.get("/api/audit/decisions")
+        assert audit.status_code == 200
+        assert isinstance(audit.json(), list)
