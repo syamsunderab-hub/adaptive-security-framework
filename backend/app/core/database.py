@@ -152,3 +152,24 @@ def get_recent_events_db(limit: int = 50) -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"Error reading events from DB: {e}")
         return []
+
+def get_recent_adaptations_db(limit: int = 200) -> List[Dict[str, Any]]:
+    """Read durable decision records, including structured details from newer writers."""
+    try:
+        conn = get_db_connection()
+        rows = conn.execute("SELECT * FROM adaptations ORDER BY timestamp DESC LIMIT ?", (limit,)).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["affected_nodes"] = json.loads(item["affected_nodes"]) if item.get("affected_nodes") else []
+            raw_details = item.get("details") or ""
+            try:
+                item["audit"] = json.loads(raw_details)
+            except (TypeError, json.JSONDecodeError):
+                item["audit"] = {"reason": raw_details}
+            result.append(item)
+        conn.close()
+        return result
+    except Exception as e:
+        print(f"Error reading adaptations from DB: {e}")
+        return []

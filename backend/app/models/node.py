@@ -1,6 +1,6 @@
 ﻿from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import time
 
 class NodeType(str, Enum):
@@ -37,12 +37,19 @@ class MapeKStage(str, Enum):
     EXECUTE = "EXECUTE"
 
 class NodeTelemetry(BaseModel):
-    cpu_percent: float = 10.0
-    network_traffic_pps: float = 100.0
-    connection_count: int = 30
-    failed_auth_count: int = 0
-    packet_rate: float = 100.0
+    cpu_percent: float = Field(default=10.0, ge=0.0, le=100.0)
+    network_traffic_pps: float = Field(default=100.0, ge=0.0)
+    connection_count: int = Field(default=30, ge=0)
+    failed_auth_count: int = Field(default=0, ge=0)
+    packet_rate: float = Field(default=100.0, ge=0.0)
     timestamp: float = Field(default_factory=time.time)
+
+    @field_validator("timestamp")
+    @classmethod
+    def timestamp_must_be_finite(cls, value: float) -> float:
+        if not isinstance(value, (int, float)) or value != value or value in (float("inf"), float("-inf")):
+            raise ValueError("timestamp must be finite")
+        return value
 
 class NodeState(BaseModel):
     node_id: str
@@ -64,7 +71,7 @@ class NodeState(BaseModel):
     parent_id: Optional[str] = None
     children_ids: List[str] = []
     active_restrictions: List[str] = []
-    metadata: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class NodeUpdateReq(BaseModel):
     security_level: Optional[SecurityLevel] = None

@@ -25,6 +25,8 @@ class Settings(BaseModel):
     HEARTBEAT_INTERVAL_SECONDS: float = 2.0
     HEARTBEAT_TIMEOUT_SECONDS: float = 6.0
     RECOVERY_VALIDATION_SECONDS: float = 4.0
+    DEESCALATION_CONSECUTIVE_OBSERVATIONS: int = 3
+    ADAPTATION_COOLDOWN_SECONDS: float = 5.0
     DATABASE_PATH: str = "adaptive_security.db"
     
     DEFCON_THRESHOLDS: DefconThresholds = DefconThresholds()

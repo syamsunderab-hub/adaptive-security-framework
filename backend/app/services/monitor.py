@@ -43,10 +43,15 @@ class Monitor:
         risk_score, threat_type, severity, confidence, desc, rec_action = analyzer_engine.analyze(
             telemetry, baseline
         )
+        evidence = analyzer_engine.explain(telemetry, baseline)
         
         node.threat_score = risk_score
         node.current_threat = threat_type.value
         node.threat_details = desc
+        if threat_type == ThreatType.NORMAL:
+            node.metadata["normal_observations"] = int(node.metadata.get("normal_observations", 0)) + 1
+        else:
+            node.metadata["normal_observations"] = 0
 
         # If threat detected and not normal, log threat event
         if threat_type != ThreatType.NORMAL:
@@ -101,7 +106,10 @@ class Monitor:
         # 3. PLAN STAGE
         node.mape_k_stage = MapeKStage.PLAN
         plan = planner_engine.plan(
-            node, risk_score, threat_type, severity, rec_action
+            node, risk_score, threat_type, severity, rec_action,
+            observed_telemetry=telemetry.model_dump(),
+            baseline=baseline,
+            risk_components=evidence["components"]
         )
 
         # 4. EXECUTE STAGE

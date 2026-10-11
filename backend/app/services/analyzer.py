@@ -1,5 +1,6 @@
 ﻿from abc import ABC, abstractmethod
 from typing import Tuple, Dict, Any
+import math
 from ..models.node import NodeTelemetry
 from ..models.threat import ThreatType, ThreatSeverity
 
@@ -13,36 +14,56 @@ class ThreatAnalyzer(ABC):
         pass
 
 class RuleBasedAnalyzer(ThreatAnalyzer):
-    def analyze(self, telemetry: NodeTelemetry, baseline: Dict[str, float]) -> Tuple[float, ThreatType, ThreatSeverity, float, str, str]:
-        base_traffic = max(1.0, baseline.get("traffic", 100.0))
-        base_conn = max(1.0, baseline.get("connections", 30.0))
-        base_cpu = max(1.0, baseline.get("cpu", 10.0))
+    def explain(self, telemetry: NodeTelemetry, baseline: Dict[str, float]) -> Dict[str, Any]:
+        """Return deterministic, auditable analysis evidence for one telemetry sample."""
+        for name, value in {
+            "cpu_percent": telemetry.cpu_percent,
+            "network_traffic_pps": telemetry.network_traffic_pps,
+            "connection_count": telemetry.connection_count,
+            "failed_auth_count": telemetry.failed_auth_count,
+        }.items():
+            if not math.isfinite(float(value)) or float(value) < 0:
+                raise ValueError(f"{name} must be a finite non-negative value")
+        for name in ("traffic", "connections", "cpu"):
+            value = float(baseline.get(name, 0.0))
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"baseline {name} must be finite and greater than zero")
 
-        # Calculate anomaly ratios
+        base_traffic = float(baseline["traffic"])
+        base_conn = float(baseline["connections"])
+        base_cpu = float(baseline["cpu"])
         traffic_ratio = max(0.0, (telemetry.network_traffic_pps - base_traffic) / base_traffic)
         conn_ratio = max(0.0, (telemetry.connection_count - base_conn) / base_conn)
         cpu_ratio = max(0.0, (telemetry.cpu_percent - base_cpu) / base_cpu)
         auth_ratio = min(1.0, telemetry.failed_auth_count / 10.0)
-
-        # Indicator scores (0 - 100 each)
         traffic_score = min(100.0, (traffic_ratio / 6.0) * 100.0)
         conn_score = min(100.0, (conn_ratio / 4.0) * 100.0)
         auth_score = min(100.0, auth_ratio * 100.0)
         cpu_score = min(100.0, (cpu_ratio / 4.0) * 100.0)
-        
-        # Other indicators (e.g. combined turbulence)
         turbulence = min(100.0, (traffic_score * 0.5 + conn_score * 0.5))
-
-        # Modular weighted risk score
-        # 30% traffic, 20% connection, 15% authentication, 10% CPU, 25% other
         weighted_score = (
-            0.30 * traffic_score +
-            0.20 * conn_score +
-            0.15 * auth_score +
-            0.10 * cpu_score +
-            0.25 * turbulence
+            0.30 * traffic_score + 0.20 * conn_score + 0.15 * auth_score +
+            0.10 * cpu_score + 0.25 * turbulence
         )
-        risk_score = round(min(100.0, max(0.0, weighted_score)), 1)
+        return {
+            "risk_score": round(min(100.0, max(0.0, weighted_score)), 1),
+            "components": {
+                "traffic": round(traffic_score, 2),
+                "connections": round(conn_score, 2),
+                "authentication": round(auth_score, 2),
+                "cpu": round(cpu_score, 2),
+                "turbulence": round(turbulence, 2),
+            },
+            "ratios": {"traffic": round(traffic_ratio, 4), "connections": round(conn_ratio, 4), "cpu": round(cpu_ratio, 4)},
+            "weights": {"traffic": 0.30, "connections": 0.20, "authentication": 0.15, "cpu": 0.10, "turbulence": 0.25},
+        }
+
+    def analyze(self, telemetry: NodeTelemetry, baseline: Dict[str, float]) -> Tuple[float, ThreatType, ThreatSeverity, float, str, str]:
+        evidence = self.explain(telemetry, baseline)
+        risk_score = evidence["risk_score"]
+        traffic_ratio = evidence["ratios"]["traffic"]
+        conn_ratio = evidence["ratios"]["connections"]
+        auth_score = evidence["components"]["authentication"]
 
         # Threat classification
         threat_type = ThreatType.NORMAL

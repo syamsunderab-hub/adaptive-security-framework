@@ -17,6 +17,17 @@ class AdaptationAction(str, Enum):
     ISOLATE_NODE = "ISOLATE_NODE"
     RESTORE_NORMAL = "RESTORE_NORMAL"
 
+class EnforcementMode(str, Enum):
+    SIMULATED = "SIMULATED"
+    ENFORCED = "ENFORCED"
+    UNSUPPORTED = "UNSUPPORTED"
+
+class ExecutionStatus(str, Enum):
+    SIMULATED_SUCCESS = "SIMULATED_SUCCESS"
+    ENFORCED_SUCCESS = "ENFORCED_SUCCESS"
+    FAILED = "FAILED"
+    UNSUPPORTED = "UNSUPPORTED"
+
 class AdaptationRecord(BaseModel):
     id: str = Field(default_factory=lambda: f"ADAPT-{uuid.uuid4().hex[:6].upper()}")
     timestamp: float = Field(default_factory=time.time)
@@ -28,6 +39,19 @@ class AdaptationRecord(BaseModel):
     adaptation_mode: AdaptationMode
     affected_nodes: List[str] = []
     details: str = ""
+    controller_id: str = "GLOBAL-CONTROLLER"
+    observed_telemetry: Dict[str, Any] = {}
+    baseline: Dict[str, Any] = {}
+    risk_components: Dict[str, float] = {}
+    risk_score: Optional[float] = None
+    threshold: Optional[float] = None
+    enforcement_mode: EnforcementMode = EnforcementMode.SIMULATED
+    execution_status: ExecutionStatus = ExecutionStatus.SIMULATED_SUCCESS
+    verification_result: str = "simulated state verified"
+    execution_error: Optional[str] = None
+    local_latency_ms: Optional[float] = None
+    global_latency_ms: Optional[float] = None
+    recovery_outcome: Optional[str] = None
 
 class SystemStatusResponse(BaseModel):
     system_name: str

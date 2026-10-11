@@ -185,3 +185,19 @@ class ThreatAnalyzer(ABC):
         pass
 ```
 The system currently runs `RuleBasedAnalyzer(ThreatAnalyzer)`. It can easily be extended with machine-learning models (e.g. `IsolationForestAnalyzer`, `AutoencoderAnalyzer`, or `XGBoostClassifier`) by implementing the same interface without altering the MAPE-K pipeline or API endpoints.
+
+## Audit, experiments, and enforcement boundaries
+
+The suite requires `pytest-asyncio`, included in `backend/requirements.txt`. Run it with `python -m pytest -q`.
+
+Structured adaptation decisions are available from `GET /api/audit/decisions`. Records include observed telemetry, baseline, risk components, selected posture, and explicit `enforcement_mode` / `execution_status` values.
+
+Run a deterministic synthetic comparison with:
+
+```bash
+python -m backend.experiments.run_experiment --seed 7 --scenario icmp_flood --output experiment-results.json
+```
+
+The runner compares static, local-only, and coordinated adaptation and stores raw traces and metric definitions in JSON. Its scenarios are simulations, not real attack-detection benchmarks. The current project provides a safe simulated enforcement adapter only: it does not install firewall rules, block real traffic, isolate hosts, or represent real attack detection. Risk analysis validates non-negative finite telemetry; escalation is immediate, while de-escalation requires configurable consecutive normal observations and a cooldown.
+
+Known limitations include single-process simulated nodes, timer-based recovery validation, lightweight SQLite error handling, and npm audit findings that should be reviewed before production use.
